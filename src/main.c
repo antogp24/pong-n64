@@ -27,8 +27,6 @@ typedef union {
 #define ArrayCount(arr) (sizeof(arr)/sizeof(*(arr)))
 #define Clamp(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
-#define force_inline __attribute__((always_inline)) inline
-
 typedef struct {
     Vector2 pos;
     Vector2 vel;
@@ -66,32 +64,32 @@ static Game_State g_game_state = Game_State_Serving;
 #define PADDLE_1_STARTING_Y PADDLE_0_STARTING_Y
 
 
-force_inline Vector2 vec2_scale(Vector2 const v, f32 const scale)
+Vector2 vec2_scale(Vector2 const v, f32 const scale)
 {
     return (Vector2){.x = v.x * scale, .y = v.y * scale};
 }
 
-force_inline Vector2 vec2_add(Vector2 const a, Vector2 const b)
+Vector2 vec2_add(Vector2 const a, Vector2 const b)
 {
     return (Vector2){.x = a.x + b.x, .y = a.y + b.y};
 }
 
 #define HasCollision(v0, w0, h0, v1, w1, h1) AABB((v0).x, (v0).y, w0, h0, (v1).x, (v1).y, w1, h1)
 
-force_inline bool AABB(f32 x0, f32 y0, f32 w0, f32 h0,
-                       f32 x1, f32 y1, f32 w1, f32 h1)
+bool AABB(f32 x0, f32 y0, f32 w0, f32 h0,
+          f32 x1, f32 y1, f32 w1, f32 h1)
 {
     return (x0 + w0 >= x1 && x1 + w1 >= x0) &&
            (y0 + h0 >= y1 && y1 + h1 >= y0);
 }
 
-force_inline void draw_rect(i32 x, i32 y, i32 width, i32 height, color_t color)
+void draw_rect(i32 x, i32 y, i32 width, i32 height, color_t color)
 {
     rdpq_set_mode_fill(color);
     rdpq_fill_rectangle(x, y, x + width, y + height);
 }
 
-static force_inline void draw_scores(surface_t* disp, u32 score1, u32 score2)
+static void draw_scores(surface_t* disp, u32 score1, u32 score2)
 {
     static char p1[8];
     sprintf(p1, "%lu", score1);
@@ -103,7 +101,7 @@ static force_inline void draw_scores(surface_t* disp, u32 score1, u32 score2)
 }
 
 
-static force_inline void draw_middle_line()
+static void draw_middle_line()
 {
     color_t const color = RGBA32(255, 255, 255, 50);
     i32 const width = 2;
@@ -118,7 +116,7 @@ static force_inline void draw_middle_line()
     }
 }
 
-static force_inline void transition_to_serving(Paddle paddles[2], Ball *ball)
+static void transition_to_serving(Paddle paddles[2], Ball *ball)
 {
     paddles[0].pos = (Vector2){.x = PADDLE_0_STARTING_X, .y = PADDLE_0_STARTING_Y};
     paddles[1].pos = (Vector2){.x = PADDLE_1_STARTING_X, .y = PADDLE_1_STARTING_Y};
