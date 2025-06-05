@@ -14,7 +14,7 @@ $(BUILD_DIR)/pong.elf: $(OBJS)
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
-# Added by me:
+# Reference Assembly
 # -------------------------------------------------------------------------------------- #
 
 REFERENCE_DIR = reference
@@ -30,6 +30,23 @@ $(REFERENCE_DIR)/%.s: $(SOURCE_DIR)/%.c
 	@mkdir -p $(dir $@)
 	@echo "    [GEN ASM] $< -> $@"
 	$(N64_CC) $(N64_CFLAGS) $(REFERENCE_FLAGS) -o $@ $<
+
+# Pong in assembly
+# -------------------------------------------------------------------------------------- #
+
+asm: asm-pong.z64
+.PHONY: asm
+
+ASM_OBJS = $(BUILD_DIR)/pong.o
+ASM_FLAGS = -mtune=vr4300 -march=vr4300 -I$(N64_INCLUDEDIR)
+
+asm-pong.z64: N64_ROM_TITLE="Pong in Assembly"
+$(BUILD_DIR)/asm-pong.elf: $(ASM_OBJS)
+
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s
+	@mkdir -p $(dir $@)
+	@echo "    [AS] $<"
+	$(N64_AS) $(ASM_FLAGS) -o $@ $<
 
 # -------------------------------------------------------------------------------------- #
 
