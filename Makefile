@@ -1,4 +1,5 @@
 V=1
+D=1
 SOURCE_DIR=src
 BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
@@ -38,7 +39,7 @@ asm: asm-pong.z64
 .PHONY: asm
 
 ASM_OBJS = $(BUILD_DIR)/pong.o
-ASM_FLAGS = -mtune=vr4300 -march=vr4300 -I$(N64_INCLUDEDIR)
+ASM_FLAGS = -g -gdwarf-4 -mtune=vr4300 -march=vr4300 -I$(N64_INCLUDEDIR)
 
 asm-pong.z64: N64_ROM_TITLE="Pong in Assembly"
 $(BUILD_DIR)/asm-pong.elf: $(ASM_OBJS)
