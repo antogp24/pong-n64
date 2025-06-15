@@ -71,12 +71,16 @@ static Game_State g_game_state = Game_State_Serving;
 
 no_inline Vector2 vec2_scale(Vector2 const v, f32 const scale)
 {
-    return (Vector2){.x = v.x * scale, .y = v.y * scale};
+    f32 const x = v.x * scale;
+    f32 const y = v.y * scale;
+    return (Vector2){.x = x, .y = y};
 }
 
 no_inline Vector2 vec2_add(Vector2 const a, Vector2 const b)
 {
-    return (Vector2){.x = a.x + b.x, .y = a.y + b.y};
+    f32 const x = a.x + b.x;
+    f32 const y = a.y + b.y;
+    return (Vector2){.x = x, .y = y};
 }
 
 #define HasCollision(v0, w0, h0, v1, w1, h1) AABB((v0).x, (v0).y, w0, h0, (v1).x, (v1).y, w1, h1)
@@ -172,8 +176,8 @@ no_inline void draw_digit(i32 x, i32 y, u8 digit)
         },
     };
 
-    for (int row = 0; row < FONT_PIXEL_HEIGHT; row++) {
-        for (int col = 0; col < FONT_PIXEL_WIDTH; col++) {
+    for (u32 row = 0; row < FONT_PIXEL_HEIGHT; row++) {
+        for (u32 col = 0; col < FONT_PIXEL_WIDTH; col++) {
             u8 const bit = (digits_font[digit][row] >> (3 - col)) & 1;
             if (bit == 1) {
                 draw_rect(x+col*FONT_SIZE, y+row*FONT_SIZE, FONT_SIZE, FONT_SIZE);
