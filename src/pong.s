@@ -1,4 +1,3 @@
-
 #>>table:normal
 # +----------+--------+--------+--------+
 # | 0  $zero | 8  $t0 | 16 $s0 | 24 $t8 |
@@ -11,7 +10,7 @@
 # | 7  $a3   | 15 $t7 | 23 $s7 | 31 $ra |
 # +----------+--------+--------+--------+
 
-# >> C libdragon structs and enums that we use
+# C libdragon structs and enums that we use
 # ----------------------------------------------- #
 #
 #
@@ -78,6 +77,8 @@
 #     FILTERS_RESAMPLE_ANTIALIAS_DEDITHER, // 4
 # } filter_options_t;
 
+# Data Section
+# ----------------------------------------------- #
 .section .data
     .equ SCREEN_WIDTH,  320
     .equ SCREEN_HEIGHT, 240
@@ -87,15 +88,16 @@
         .word SCREEN_HEIGHT
 
     .equ BALL_SIZE, 5
-    .equ BALL_STARTING_X, ((SCREEN_WIDTH  - BALL_SIZE) / 2)
-    .equ BALL_STARTING_Y, ((SCREEN_HEIGHT - BALL_SIZE) / 2)
+    .equ BALL_STARTING_X,     ((SCREEN_WIDTH  - BALL_SIZE) / 2)
+    .equ BALL_STARTING_Y,     ((SCREEN_HEIGHT - BALL_SIZE) / 2)
+    .equ BALL_STARTING_SPEED, 2
 
     ball:
         ball_x: .word BALL_STARTING_X
         ball_y: .word BALL_STARTING_Y
         ball_vel_x: .word 1
         ball_vel_y: .word 1
-        ball_speed: .word 1
+        ball_speed: .word BALL_STARTING_SPEED
 
     .equ PADDLE_WIDTH,  5
     .equ PADDLE_HEIGHT, 25
@@ -103,6 +105,7 @@
 
     .equ PADDLE_0_STARTING_X, 10
     .equ PADDLE_0_STARTING_Y, ((SCREEN_HEIGHT - PADDLE_HEIGHT) / 2)
+    # .equ PADDLE_0_STARTING_Y, ((SCREEN_HEIGHT - PADDLE_HEIGHT) / 2) - 20 # @testing
 
     paddle_0:
         paddle_0_x: .word PADDLE_0_STARTING_X
@@ -111,6 +114,7 @@
 
     .equ PADDLE_1_STARTING_X, (SCREEN_WIDTH - PADDLE_WIDTH - PADDLE_0_STARTING_X)
     .equ PADDLE_1_STARTING_Y, PADDLE_0_STARTING_Y
+    # .equ PADDLE_1_STARTING_Y, SCREEN_HEIGHT - 2*PADDLE_HEIGHT # @testing
 
     paddle_1:
         paddle_1_x: .word PADDLE_1_STARTING_X
@@ -122,7 +126,31 @@
     game_state:
         .word Game_State_Serving
 
+
+# Text Section
+# ----------------------------------------------- #
 .section .text
+
+# args:
+#     - a0: value
+#     - a1: min
+#     - a2: max
+# returns:
+#     - v0: min <= result <= max
+clamp:
+        slt $t0, $a0, $a1 # t0 = 1 if (value < min) else 0
+        bne $t0, $zero, clamp__return_min
+        slt $t0, $a0, $a2 # t0 = 0 if (value >= max) else 1
+        beq $t0, $zero, clamp__return_max
+        move $v0, $a0
+        jr $ra
+        clamp__return_min:
+            move $v0, $a1
+            jr $ra
+        clamp__return_max:
+            move $v0, $a2
+            jr $ra
+
 
 # args:
 #     - a0: x coordinate
@@ -144,6 +172,93 @@ draw_rect:
     ld  $ra, 0($sp)
     add $sp, $sp, 8
     jr  $ra
+
+
+transition_to_serving:
+    li $t0, PADDLE_0_STARTING_X
+    sw $t0, paddle_0_x
+    li $t0, PADDLE_0_STARTING_Y
+    sw $t0, paddle_0_y
+
+    li $t0, PADDLE_1_STARTING_X
+    sw $t0, paddle_1_x
+    li $t0, PADDLE_1_STARTING_Y
+    sw $t0, paddle_1_y
+
+    li $t0, BALL_STARTING_X
+    sw $t0, ball_x
+    li $t0, BALL_STARTING_Y
+    sw $t0, ball_y
+
+    li $t0, 1
+    sw $t0, ball_vel_x
+    sw $t0, ball_vel_y
+
+    li $t0, BALL_STARTING_SPEED
+    sw $t0, ball_speed
+
+    li $t0, Game_State_Serving
+    sw $t0, game_state
+
+    jr $ra
+
+
+# args:
+#     - a0: paddle_x
+#     - a1: paddle_y
+# returns:
+#     - v0: boolean result
+does_ball_collide_with_paddle:
+    lw $t0, ball_x
+    lw $t1, ball_y
+
+    # Check (ball_x + BALL_SIZE >= paddle_x)
+    addi $t2, $t0, BALL_SIZE
+    slt  $t2, $t2, $a0 # $t2 = 0 if (ball_x + BALL_SIZE >= paddle_x) else 1
+    bne  $t2, $zero, ball_collided_with_paddle_false
+
+    # Check (paddle_x + PADDLE_WIDTH >= ball_x)
+    addi $t2, $a0, PADDLE_WIDTH
+    slt  $t2, $t2, $t0 # $t2 = 0 if (paddle_x + PADDLE_WIDTH >= ball_x) else 1
+    bne  $t2, $zero, ball_collided_with_paddle_false
+
+    # Check (ball_y + BALL_SIZE >= paddle_y)
+    addi $t2, $t1, BALL_SIZE
+    slt  $t2, $t2, $a1 # $t2 = 0 if (ball_y + BALL_SIZE >= paddle_y) else 1
+    bne  $t2, $zero, ball_collided_with_paddle_false
+
+    # Check (paddle_y + PADDLE_HEIGHT >= ball_y)
+    addi $t2, $a1, PADDLE_HEIGHT
+    slt  $t2, $t2, $t1 # $t2 = 0 if (paddle_y + PADDLE_HEIGHT >= ball_y) else 1
+    bne  $t2, $zero, ball_collided_with_paddle_false
+
+    # Return true
+    li $v0, 1
+    jr $ra
+
+    # Return false
+    ball_collided_with_paddle_false:
+    li $v0, 0
+    jr $ra
+
+
+# args:
+#     - a0: la ball_vel_(x or y)
+bounce_ball:
+    # ball_vel_? *= -1
+    lw  $t0, 0($a0)
+    mul $t0, $t0, -1
+    sw  $t0, 0($a0)
+
+    # ball_speed *= 3/2
+    lw   $t0, ball_speed
+    li   $t1, 3
+    mult $t0, $t1    # ball_speed * 3
+    mflo $t0
+    srl  $t0, $t0, 1 # ball_speed * 3 / 2
+    sw   $t0, ball_speed
+
+    jr $ra
 
 
 .globl main
@@ -201,12 +316,91 @@ main:
         lw $t0, game_state
         li $t1, Game_State_Serving
         beq $t0, $t1, case_serving
+
         case_playing:
+            lw  $t1, ball_speed
+            # Move the ball on the X Axis.
+            lw  $t2, ball_vel_x
+            mul $t2, $t2, $t1
+            lw  $t0, ball_x
+            add $t0, $t0, $t2
+            sw  $t0, ball_x
+            # Move the ball on the Y Axis.
+            lw  $t2, ball_vel_y
+            mul $t2, $t2, $t1
+            lw  $t0, ball_y
+            add $t0, $t0, $t2
+            sw  $t0, ball_y
+
+            # Clamping the first paddle's position to always appear in the screen.
+            lw $a0, paddle_0_y
+            li $a1, 0
+            li $a2, SCREEN_HEIGHT - PADDLE_HEIGHT
+            jal clamp
+            sw $v0, paddle_0_y
+
+            # Clamping the second paddle's position to always appear in the screen.
+            lw $a0, paddle_1_y
+            li $a1, 0
+            li $a2, SCREEN_HEIGHT - PADDLE_HEIGHT
+            jal clamp
+            sw $v0, paddle_1_y
+
+            # Ball collision with the ceiling or floor
+            lw   $t0, ball_y
+            slti $t1, $t0, 1
+            #    $t1 = 1 if (ball_y <= 0) else 0
+            bne  $t1, $zero, collided_with_ceiling_or_floor
+            slti $t1, $t0, SCREEN_HEIGHT - BALL_SIZE
+            #    $t1 = 0 if (ball_y + BALL_SIZE >= SCREEN_HEIGHT) else 1
+            bne  $t1, $zero, did_NOT_collide_with_ceiling_or_floor
+            collided_with_ceiling_or_floor:
+                la  $a0, ball_vel_y
+                jal bounce_ball
+            did_NOT_collide_with_ceiling_or_floor:
+
+            # Ball collision with the paddles
+            lw  $a0, paddle_0_x
+            lw  $a1, paddle_0_y
+            jal does_ball_collide_with_paddle
+            bne $v0, $zero, ball_collided_with_paddle
+            lw  $a0, paddle_1_x
+            lw  $a1, paddle_1_y
+            jal does_ball_collide_with_paddle
+            beq $v0, $zero, ball_did_NOT_collide_with_paddle
+            ball_collided_with_paddle:
+                la  $a0, ball_vel_x
+                jal bounce_ball
+            ball_did_NOT_collide_with_paddle:
+
+            # Player 0 scored.
+            lw   $t0, ball_x
+            slti $t0, $t0, SCREEN_WIDTH - BALL_SIZE
+            #    $t0 = 0 if (ball_x + BALL_SIZE >= SCREEN_WIDTH) else 1
+            bne  $t0, $zero, player_0_did_not_score
+                lw   $t0, paddle_0_score
+                addi $t0, $t0, 1
+                sw   $t0, paddle_0_score
+                jal  transition_to_serving
+            player_0_did_not_score:
+
+            # Player 1 scored.
+            lw   $t0, ball_x
+            slti $t0, $t0, 1
+            #    $t0 = 1 if (ball_x <= 0) else 0
+            beq  $t0, $zero, player_1_did_not_score
+                lw   $t0, paddle_1_score
+                addi $t0, $t0, 1
+                sw   $t0, paddle_1_score
+                jal  transition_to_serving
+            player_1_did_not_score:
+
             j case_none
         case_serving:
             # TODO: Should only be doing this if (keys.c[0].A)
             li $t0, Game_State_Playing
             sw $t0, game_state
+
         case_none:
 
         jal rdpq_detach_show
