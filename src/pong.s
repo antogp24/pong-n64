@@ -16,30 +16,30 @@
 #
 # //NOTE: sizeof(SI_condat) == 8 bytes == 64 bits
 # typedef struct SI_condat {
-#     unsigned : 16;    // unused padding
-#     unsigned err : 2; // status of the last command
-#     unsigned : 14;    // unused padding
+#     unsigned     : 16; // unused padding
+#     unsigned err :  2; // status of the last command
+#     unsigned     : 14; // unused padding
 #
 #     union {
 #         struct { unsigned int data : 32; };
 #         struct {
-#             unsigned A : 1;
-#             unsigned B : 1;
-#             unsigned Z : 1;
-#             unsigned start : 1;
-#             unsigned up : 1;
-#             unsigned down : 1;
-#             unsigned left : 1;
-#             unsigned right : 1;
-#             unsigned : 2;
-#             unsigned L : 1;
-#             unsigned R : 1;
-#             unsigned C_up : 1;
-#             unsigned C_down : 1;
-#             unsigned C_left : 1;
-#             unsigned C_right : 1;
-#             signed x : 8;
-#             signed y : 8;
+#             unsigned A : 1;       // Bit 32
+#             unsigned B : 1;       // Bit 31
+#             unsigned Z : 1;       // Bit 30
+#             unsigned start : 1;   // Bit 29
+#             unsigned up : 1;      // Bit 28
+#             unsigned down : 1;    // Bit 27
+#             unsigned left : 1;    // Bit 26
+#             unsigned right : 1;   // Bit 25
+#             unsigned : 2;         // Bits 24 to 23
+#             unsigned L : 1;       // Bit 22
+#             unsigned R : 1;       // Bit 21
+#             unsigned C_up : 1;    // Bit 20
+#             unsigned C_down : 1;  // Bit 19
+#             unsigned C_left : 1;  // Bit 18
+#             unsigned C_right : 1; // Bit 17
+#             signed x : 8;         // Bits 16 to 8
+#             signed y : 8;         // Bits 7 to 0
 #         };
 #     };
 # } _SI_condat;
@@ -87,14 +87,25 @@
         .word SCREEN_WIDTH
         .word SCREEN_HEIGHT
 
+    # This gets modified by `get_keys_held`.
+    KEYS_HELD:
+        KEYS_HELD_CONTROLLER_0:          .double 0
+        KEYS_HELD_CONTROLLER_1:          .double 0
+        KEYS_HELD_CONTROLLER_2:          .double 0
+        KEYS_HELD_CONTROLLER_3:          .double 0
+        KEYS_HELD_GAMECUBE_CONTROLLER_0: .double 0
+        KEYS_HELD_GAMECUBE_CONTROLLER_1: .double 0
+        KEYS_HELD_GAMECUBE_CONTROLLER_2: .double 0
+        KEYS_HELD_GAMECUBE_CONTROLLER_3: .double 0
+
     .equ BALL_SIZE, 5
     .equ BALL_STARTING_X,     ((SCREEN_WIDTH  - BALL_SIZE) / 2)
     .equ BALL_STARTING_Y,     ((SCREEN_HEIGHT - BALL_SIZE) / 2)
-    .equ BALL_STARTING_SPEED, 2
+    .equ BALL_STARTING_SPEED, 1
 
     ball:
-        ball_x: .word BALL_STARTING_X
-        ball_y: .word BALL_STARTING_Y
+        ball_x:     .word BALL_STARTING_X
+        ball_y:     .word BALL_STARTING_Y
         ball_vel_x: .word 1
         ball_vel_y: .word 1
         ball_speed: .word BALL_STARTING_SPEED
@@ -105,20 +116,18 @@
 
     .equ PADDLE_0_STARTING_X, 10
     .equ PADDLE_0_STARTING_Y, ((SCREEN_HEIGHT - PADDLE_HEIGHT) / 2)
-    # .equ PADDLE_0_STARTING_Y, ((SCREEN_HEIGHT - PADDLE_HEIGHT) / 2) - 20 # @testing
 
     paddle_0:
-        paddle_0_x: .word PADDLE_0_STARTING_X
-        paddle_0_y: .word PADDLE_0_STARTING_Y
+        paddle_0_x:     .word PADDLE_0_STARTING_X
+        paddle_0_y:     .word PADDLE_0_STARTING_Y
         paddle_0_score: .word 0
 
     .equ PADDLE_1_STARTING_X, (SCREEN_WIDTH - PADDLE_WIDTH - PADDLE_0_STARTING_X)
     .equ PADDLE_1_STARTING_Y, PADDLE_0_STARTING_Y
-    # .equ PADDLE_1_STARTING_Y, SCREEN_HEIGHT - 2*PADDLE_HEIGHT # @testing
 
     paddle_1:
-        paddle_1_x: .word PADDLE_1_STARTING_X
-        paddle_1_y: .word PADDLE_1_STARTING_Y
+        paddle_1_x:     .word PADDLE_1_STARTING_X
+        paddle_1_y:     .word PADDLE_1_STARTING_Y
         paddle_1_score: .word 0
 
     .equ Game_State_Serving, 0
@@ -249,16 +258,15 @@ bounce_ball:
     lw  $t0, 0($a0)
     mul $t0, $t0, -1
     sw  $t0, 0($a0)
-
-    # ball_speed *= 3/2
-    lw   $t0, ball_speed
-    li   $t1, 3
-    mult $t0, $t1    # ball_speed * 3
-    mflo $t0
-    srl  $t0, $t0, 1 # ball_speed * 3 / 2
-    sw   $t0, ball_speed
-
     jr $ra
+
+accelerate_ball:
+    # TODO: USE FLOATS (With integers the ball goes very fast).
+    lw   $t0, ball_speed
+    addi $t0, $t0, 1
+    sw   $t0, ball_speed
+    jr $ra
+
 
 
 .globl main
@@ -310,8 +318,8 @@ main:
         jal draw_rect
 
         jal controller_scan
-        # FIXME: This causes null pointer dereference at `ld t2, 0(a0)`
-        # jal get_keys_held # returns `struct controller_data`
+        la $a0, KEYS_HELD
+        jal get_keys_held
 
         lw $t0, game_state
         li $t1, Game_State_Serving
@@ -332,6 +340,46 @@ main:
             add $t0, $t0, $t2
             sw  $t0, ball_y
 
+            # Checking if Player 0 moves up.
+            lw   $t0, (4 + KEYS_HELD_CONTROLLER_0)($0)
+            srl  $t0, $t0, 27 # Button (up) on bit 28
+            andi $t0, $t0, 1
+            beq  $t0, $zero, key_up_is_NOT_held
+                lw   $t0, paddle_0_y
+                addi $t0, $t0, -PADDLE_SPEED
+                sw   $t0, paddle_0_y
+            key_up_is_NOT_held:
+
+            # Checking if Player 0 moves down.
+            lw   $t0, (4 + KEYS_HELD_CONTROLLER_0)($0)
+            srl  $t0, $t0, 26 # Button (down) on bit 27
+            andi $t0, $t0, 1
+            beq  $t0, $zero, key_down_is_NOT_held
+                lw   $t0, paddle_0_y
+                addi $t0, $t0, PADDLE_SPEED
+                sw   $t0, paddle_0_y
+            key_down_is_NOT_held:
+
+            # Checking if Player 1 moves up.
+            lw   $t0, (4 + KEYS_HELD_CONTROLLER_0)($0)
+            srl  $t0, $t0, 19 # Button (C_up) on bit 20
+            andi $t0, $t0, 1
+            beq  $t0, $zero, key_C_up_is_NOT_held
+                lw   $t0, paddle_1_y
+                addi $t0, $t0, -PADDLE_SPEED
+                sw   $t0, paddle_1_y
+            key_C_up_is_NOT_held:
+
+            # Checking if Player 1 moves down.
+            lw   $t0, (4 + KEYS_HELD_CONTROLLER_0)($0)
+            srl  $t0, $t0, 18 # Button (C_down) on bit 19
+            andi $t0, $t0, 1
+            beq  $t0, $zero, key_C_down_is_NOT_held
+                lw   $t0, paddle_1_y
+                addi $t0, $t0, PADDLE_SPEED
+                sw   $t0, paddle_1_y
+            key_C_down_is_NOT_held:
+
             # Clamping the first paddle's position to always appear in the screen.
             lw $a0, paddle_0_y
             li $a1, 0
@@ -350,16 +398,16 @@ main:
             lw   $t0, ball_y
             slti $t1, $t0, 1
             #    $t1 = 1 if (ball_y <= 0) else 0
-            bne  $t1, $zero, collided_with_ceiling_or_floor
+            bne  $t1, $zero, collided_with_ceiling_OR_floor
             slti $t1, $t0, SCREEN_HEIGHT - BALL_SIZE
             #    $t1 = 0 if (ball_y + BALL_SIZE >= SCREEN_HEIGHT) else 1
-            bne  $t1, $zero, did_NOT_collide_with_ceiling_or_floor
-            collided_with_ceiling_or_floor:
+            bne  $t1, $zero, did_NOT_collide_with_ceiling_OR_floor
+            collided_with_ceiling_OR_floor:
                 la  $a0, ball_vel_y
                 jal bounce_ball
-            did_NOT_collide_with_ceiling_or_floor:
+            did_NOT_collide_with_ceiling_OR_floor:
 
-            # Ball collision with the paddles
+            # Ball collision with the paddles.
             lw  $a0, paddle_0_x
             lw  $a1, paddle_0_y
             jal does_ball_collide_with_paddle
@@ -371,6 +419,7 @@ main:
             ball_collided_with_paddle:
                 la  $a0, ball_vel_x
                 jal bounce_ball
+                jal accelerate_ball
             ball_did_NOT_collide_with_paddle:
 
             # Player 0 scored.
@@ -396,14 +445,18 @@ main:
             player_1_did_not_score:
 
             j case_none
+
         case_serving:
-            # TODO: Should only be doing this if (keys.c[0].A)
-            li $t0, Game_State_Playing
-            sw $t0, game_state
+            # Checking for (A) being held (On lower bit position 32).
+            lw   $t0, (4 + KEYS_HELD_CONTROLLER_0)($0)
+            srl  $t0, $t0, 31
+            andi $t0, $t0, 1
+            beq $t0, $zero, case_none
+                li $t0, Game_State_Playing
+                sw $t0, game_state
 
         case_none:
-
         jal rdpq_detach_show
-    j main_loop
+        j   main_loop
 
     addiu $sp, $sp, 240
