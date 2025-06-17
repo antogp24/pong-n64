@@ -260,6 +260,7 @@ bounce_ball:
     sw  $t0, 0($a0)
     jr $ra
 
+
 accelerate_ball:
     # TODO: USE FLOATS (With integers the ball goes very fast).
     lw   $t0, ball_speed
@@ -267,6 +268,35 @@ accelerate_ball:
     sw   $t0, ball_speed
     jr $ra
 
+.equ MIDDLE_LINE_WIDTH, 2
+.equ MIDDLE_LINE_HEIGHT, 10
+.equ MIDDLE_LINE_PADDING, 5
+.equ MIDDLE_LINE_OFFSET, 5
+.equ MIDDLE_LINE_SEGMENTS, 15
+draw_middle_line:
+    add $sp, $sp, -16
+    sd  $ra, 0($sp)
+    sd  $s0, 8($sp)
+
+    li $s0, 0
+    draw_middle_line_loop:
+        li   $a0, (SCREEN_WIDTH - MIDDLE_LINE_WIDTH) / 2
+        mul  $a1, $s0, MIDDLE_LINE_HEIGHT  # y = i * height
+        addi $s0, $s0, 1                   # i++
+        mul  $t0, $s0, MIDDLE_LINE_PADDING #
+        add  $a1, $a1, $t0                 # y += i * padding
+        addi $a1, $a1, MIDDLE_LINE_OFFSET  # y += offset
+        li   $a2, MIDDLE_LINE_WIDTH
+        li   $a3, MIDDLE_LINE_HEIGHT
+        jal  draw_rect
+
+        slti $t0, $s0,   MIDDLE_LINE_SEGMENTS
+        bne  $t0, $zero, draw_middle_line_loop
+
+    ld  $ra, 0($sp)
+    ld  $s0, 8($sp)
+    add $sp, $sp, 16
+    jr $ra
 
 
 .globl main
@@ -295,6 +325,16 @@ main:
         move $a0, $v0 # Move the result (surface_t*) into $a0
         move $a1, $0  # There is no Z-Buffer
         jal rdpq_attach_clear
+
+        li  $t0, -1
+        sb  $t0, 0($a0)
+        sb  $t0, 1($a0)
+        sb  $t0, 2($a0)
+        li  $t0, 50
+        sb  $t0, 3($a0)
+        ld  $a0, 0($a0)
+        jal rdpq_set_mode_fill
+        jal draw_middle_line
 
         li  $a0, 0xFFFFFFFF
         jal rdpq_set_mode_fill
