@@ -268,6 +268,7 @@ accelerate_ball:
     sw   $t0, ball_speed
     jr $ra
 
+
 .equ MIDDLE_LINE_WIDTH, 2
 .equ MIDDLE_LINE_HEIGHT, 10
 .equ MIDDLE_LINE_PADDING, 5
