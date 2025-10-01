@@ -1,18 +1,6 @@
-#>>table:normal
-# +----------+--------+--------+--------+
-# | 0  $zero | 8  $t0 | 16 $s0 | 24 $t8 |
-# | 1  $at   | 9  $t1 | 17 $s1 | 25 $t9 |
-# | 2  $v0   | 10 $t2 | 18 $s2 | 26 $k0 |
-# | 3  $v1   | 11 $t3 | 19 $s3 | 27 $k1 |
-# | 4  $a0   | 12 $t4 | 20 $s4 | 28 $gp |
-# | 5  $a1   | 13 $t5 | 21 $s5 | 29 $sp |
-# | 6  $a2   | 14 $t6 | 22 $s6 | 30 $fp |
-# | 7  $a3   | 15 $t7 | 23 $s7 | 31 $ra |
-# +----------+--------+--------+--------+
 
-# C libdragon structs and enums that we use
+# C libdragon structs and enums that I use
 # ----------------------------------------------- #
-#
 #
 # //NOTE: sizeof(SI_condat) == 8 bytes == 64 bits
 # typedef struct SI_condat {
@@ -134,6 +122,71 @@
     .equ Game_State_Playing, 1
     game_state:
         .word Game_State_Serving
+
+    .equ FONT_SIZE,         2
+    .equ FONT_PIXEL_WIDTH,  4
+    .equ FONT_PIXEL_HEIGHT, 5
+    digits_font:
+        digits_font_char_0:
+            .byte 0b1111
+            .byte 0b1001
+            .byte 0b1001
+            .byte 0b1001
+            .byte 0b1111
+        digits_font_char_1:
+            .byte 0b0110
+            .byte 0b0010
+            .byte 0b0010
+            .byte 0b0010
+            .byte 0b0111
+        digits_font_char_2:
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b1111
+            .byte 0b1000
+            .byte 0b1111
+        digits_font_char_3:
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b1111
+        digits_font_char_4:
+            .byte 0b1001
+            .byte 0b1001
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b0001
+        digits_font_char_5:
+            .byte 0b1111
+            .byte 0b1000
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b1111
+        digits_font_char_6:
+            .byte 0b1111
+            .byte 0b1000
+            .byte 0b1111
+            .byte 0b1001
+            .byte 0b1111
+        digits_font_char_7:
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b0001
+            .byte 0b0001
+            .byte 0b0001
+        digits_font_char_8:
+            .byte 0b1111
+            .byte 0b1001
+            .byte 0b1111
+            .byte 0b1001
+            .byte 0b1111
+        digits_font_char_9:
+            .byte 0b1111
+            .byte 0b1001
+            .byte 0b1111
+            .byte 0b0001
+            .byte 0b0001
 
 
 # Text Section
@@ -300,6 +353,188 @@ draw_middle_line:
     jr $ra
 
 
+# args:
+#     - a0: x
+#     - a1: y
+#     - a2: digit
+draw_digit:
+    slti $t0, $a2, 10
+    #    $t0 = 0 if (digit >= 10) else 1
+    beq  $t0, $zero, draw_digit__exit
+
+    addi $sp, $sp, -48
+    sd   $s0,  0($sp)
+    sd   $s1,  8($sp)
+    sd   $s2, 16($sp)
+    sd   $s3, 24($sp)
+    sd   $s4, 32($sp)
+    sd   $ra, 40($sp)
+
+    move $s2, $a0 # x
+    move $s3, $a1 # y
+    move $s4, $a2 # digit
+
+    li $s0, 0 # row
+    draw_digit__loop_row:
+        li $s1, 0 # col
+        draw_digit__loop_col:
+            mul $t0, $s0, FONT_SIZE # row * font_size
+            mul $t1, $s1, FONT_SIZE # col * font_size
+            mul $t2, $s4, FONT_PIXEL_HEIGHT # digit * font_height
+
+            la  $t3, digits_font
+            add $t3, $t3, $t2 # += digit * font_height
+            add $t3, $t3, $s0 # += row
+            lb  $t3, 0($t3)   # digits_font[digit * font_height + row]
+
+            li   $t4, 3
+            sub  $t4, $t4, $s1 # (3 - col)
+            srlv $t4, $t3, $t4 # digits_font[digit * font_height + row] >> (3 - col)
+            andi $t4, $t4, 1
+            beq  $t4, $zero, draw_digit__bit_is_NOT_set
+                add  $a0, $s2, $t1  # x + col * font_size
+                add  $a1, $s3, $t0  # y + row * font_size
+                li   $a2, FONT_SIZE # width
+                li   $a3, FONT_SIZE # height
+                jal  draw_rect
+            draw_digit__bit_is_NOT_set:
+            addi $s1, $s1, 1
+            slti $t0, $s1, FONT_PIXEL_WIDTH
+            #    $t0 = 1 if (col < FONT_PIXEL_WIDTH) else 0
+            bne  $t0, $zero, draw_digit__loop_col
+        addi $s0, $s0, 1
+        slti $t0, $s0, FONT_PIXEL_HEIGHT
+        #    $t0 = 1 if (row < FONT_PIXEL_HEIGHT) else 0
+        bne  $t0, $zero, draw_digit__loop_row
+
+    ld   $s0,  0($sp)
+    ld   $s1,  8($sp)
+    ld   $s2, 16($sp)
+    ld   $s3, 24($sp)
+    ld   $s4, 32($sp)
+    ld   $ra, 40($sp)
+    addi $sp, $sp, 48
+
+    draw_digit__exit:
+    jr $ra
+
+
+# args:
+#     - a0: x where (x >= 0)
+# returns:
+#     - v0: number of digits in x
+get_digit_count:
+    li $v0, 0 # count
+    get_digit_count__loop:
+        beq  $a0, $zero, get_digit_count__exit
+        divu $a0, $a0, 10
+        addi $v0, $v0, 1
+        j get_digit_count__loop
+    get_digit_count__exit:
+    jr $ra
+
+
+# args:
+#     - a0: x where (x >= 0)
+# returns:
+#     - v0: pow(10, x)
+power_of_10:
+    li $t0, 1  # i
+    li $v0, 10 # result
+    slti $t1, $a0, 1
+    #    $t1 = 0 if (x >= 1) else 1
+    bne  $t1, $zero, power_of_10__exit
+    power_of_10__loop:
+        mul  $v0, $v0, 10 # result *= 10
+        addi $t0, $t0, 1  # i++
+        slt  $t1, $t0, $a0
+        #    $t1 = 1 if (i < x) else 0
+        bne  $t1, $zero, power_of_10__loop
+    power_of_10__exit:
+    jr $ra
+
+
+# args:
+#     - a0: x
+#     - a1: y
+#     - a2: number
+#     - a3: digit_count
+draw_u32:
+    addi $sp, $sp, -48
+    sd   $s0,  0($sp)
+    sd   $s1,  8($sp)
+    sd   $s2, 16($sp)
+    sd   $s3, 24($sp)
+    sd   $s4, 32($sp)
+    sd   $ra, 40($sp)
+
+    move $s1, $a0 # x
+    move $s2, $a1 # y
+    move $s3, $a2 # number
+    move $s4, $a3 # digit_count
+
+    li $s0, 0 # i
+    draw_u32__loop:
+        move $a0, $s0
+        jal  power_of_10   #           pow(10, i)
+        div  $t0, $s3, $v0 #  number / pow(10, i)
+        li   $t1, 10
+        div  $t0, $t1      
+        mfhi $t0           # (number / pow(10, i)) % 10
+
+        mul $t1, $s0, FONT_SIZE            # i * font_size
+        mul $t1, $t1, FONT_PIXEL_WIDTH + 1 # i * font_size * (font_width + 1)
+
+        add  $a0, $s1, $t1 # x - (i * font_size * (font_width + 1))
+        move $a1, $s2      # y
+        move $a2, $t0      # digit
+        jal draw_digit
+
+        addi $s0, $s0, 1
+        slt  $t0, $s0, $s4
+        #    $t0 = 1 if (i < digit_count) else 0
+        bne  $t0, $zero, draw_u32__loop
+
+    ld   $s0,  0($sp)
+    ld   $s1,  8($sp)
+    ld   $s2, 16($sp)
+    ld   $s3, 24($sp)
+    ld   $s4, 32($sp)
+    ld   $ra, 40($sp)
+    addi $sp, $sp, 48
+    jr $ra
+
+
+draw_scores:
+    addi $sp, $sp, -8
+    sd   $ra, 0($sp)
+
+    lw   $a0, paddle_0_score
+    jal  get_digit_count
+
+    li   $a0, SCREEN_WIDTH/2 - (2 * FONT_PIXEL_WIDTH * FONT_SIZE)
+    li   $a1, 10
+    lw   $a2, paddle_0_score
+    move $a3, $v0
+    jal  draw_u32
+
+    lw   $a0, paddle_1_score
+    jal  get_digit_count
+
+    mul $t0, $v0, FONT_PIXEL_WIDTH * FONT_SIZE
+    sub $t0, $zero, $t0
+
+    addi $a0, $t0, SCREEN_WIDTH/2
+    li   $a1, 10
+    lw   $a2, paddle_1_score
+    move $a3, $v0
+    jal  draw_u32
+
+    ld   $ra, 0($sp)
+    addi $sp, $sp, 8
+    jr $ra
+
+
 .globl main
 main:
     addiu $sp, $sp, -240
@@ -339,6 +574,8 @@ main:
 
         li  $a0, 0xFFFFFFFF
         jal rdpq_set_mode_fill
+
+        jal draw_scores
 
         lw $a0, ball_x
         lw $a1, ball_y
